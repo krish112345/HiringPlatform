@@ -222,6 +222,6 @@ For support and questions:
 - **Next.js**: 15.3.3
 - **React**: 18.3.1
 
----
+--
 
 **Veridia.io** - Transforming recruitment through technology and AI.
