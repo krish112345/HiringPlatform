@@ -88,7 +88,7 @@ npm run dev
 npm run genkit:dev
 ```
 
-The application will be available at `http://localhost:9002`
+The application will be available at `https://hiring-platform-hazel.vercel.app/`
 
 ## 🏗 Project Structure
 
