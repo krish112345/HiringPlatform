@@ -1,0 +1,133 @@
+/**
+ * @fileoverview Firestore Security Rules for Veridia Hire application.
+ *
+ * Core Philosophy:
+ * This ruleset implements a hybrid security model, primarily based on ownership and role-based access control.
+ * User-specific data is secured using ownership, while broader access (e.g., HR roles) is controlled through database-based access control (DBAC).
+ *
+ * Data Structure:
+ * - `/users/{userId}`: Stores individual candidate profiles, accessible only by the user themselves.
+ * - `/jobs/{jobId}`: Stores job postings, publicly readable but write-protected (HR role needed for modifications).
+ * - `/applications/{applicationId}`: Stores job applications.  Access controlled based on ownership (candidate) or HR role.
+ * - `/roles_hr/{userId}`: Indicates HR role. Existence of document grants HR permissions.
+ *
+ * Key Security Decisions:
+ * - Candidates can only access their own profiles.
+ * - Job postings are publicly readable.
+ * - Only users with the HR role can create, update, or delete job postings.
+ * - HR role is determined by the existence of a document in the `roles_hr` collection.
+ * - Listing of candidates is restricted to prevent unauthorized data scraping.
+ *
+ * Denormalization for Authorization:
+ *  None detected. The current rules rely on path-based ownership and DBAC. In the future, consider denormalizing data like job titles into applications to avoid the need for `get()` calls in security rules.
+ *
+ * Structural Segregation:
+ * The structure uses separate collections for user data (`/users/{userId}`) and shared data (`/jobs/{jobId}`) to maintain a clear security posture.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Checks if the user is signed in.
+     * @return {bool} True if the user is signed in, false otherwise.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Checks if the user is the owner of the document.
+     * @param {string} userId - The user ID to check against.
+     * @return {bool} True if the user is the owner, false otherwise.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * @description Checks if the user exists and the user is the owner of the document.
+     * @param {string} userId - The user ID to check against.
+     * @return {bool} True if the resource exists and the user is the owner, false otherwise.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * @description Checks if the user has the HR role.
+     * @return {bool} True if the user has the HR role, false otherwise.
+     */
+    function hasHrRole() {
+      return exists(/databases/$(database)/documents/roles_hr/$(request.auth.uid));
+    }
+
+    /**
+     * @description Security rules for user profiles.
+     * @path /users/{userId}
+     * @allow (create) - A user can create their own profile if the userId matches their auth UID.
+     * @allow (get, list) - A user can only read their own profile.
+     * @allow (update, delete) - A user can update their own profile.
+     * @deny (create) - A user cannot create a profile for another user.
+     * @deny (get, list) - A user cannot read another user's profile.
+     * @principle Enforces document ownership for reads and writes.
+     */
+    match /users/{userId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Security rules for job postings.
+     * @path /jobs/{jobId}
+     * @allow (get, list) - Anyone can read job postings.
+     * @allow (create) - Only HR can create job postings.
+     * @allow (update, delete) - Only HR can update or delete job postings.
+     * @deny (create) - Non HR cannot create job postings.
+     * @deny (get, list) - N/A
+     * @principle Allows public reads but restricts writes to HR roles.
+     */
+    match /jobs/{jobId} {
+      allow get, list: if true;
+      allow create: if hasHrRole();
+      allow update: if hasHrRole() && resource != null;
+      allow delete: if hasHrRole() && resource != null;
+    }
+
+    /**
+     * @description Security rules for job applications.
+     * @path /applications/{applicationId}
+     * @allow (get, list) - HR can view all applications. Candidate can view their own application.
+     * @allow (create) - Anyone can create an application.
+     * @allow (update, delete) - HR can update or delete any application. Candidate cannot update.
+     * @deny (create) - N/A
+     * @deny (get, list) - User cannot list other applications.
+     * @principle Allows HR to view all applications and candidates to view their own.
+     */
+    match /applications/{applicationId} {
+      allow get: if hasHrRole() || (isSignedIn() && resource.data.candidateId == request.auth.uid);
+      allow list: if hasHrRole() || (isSignedIn() && resource.data.candidateId == request.auth.uid);
+      allow create: if isSignedIn();
+      allow update: if hasHrRole() && resource != null;
+      allow delete: if hasHrRole() && resource != null;
+    }
+
+    /**
+     * @description Security rules for HR roles.
+     * @path /roles_hr/{userId}
+     * @allow (get) - Anyone can get.
+     * @allow (create) - Only the user themself can create their HR role.
+     * @allow (update, delete) - Only the user themself can update or delete their HR role.
+     * @deny (create) - A user cannot create a role for another user.
+     * @principle Enforces document ownership for HR roles.
+     */
+     match /roles_hr/{userId} {
+      allow get: if true;
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+  }
+}

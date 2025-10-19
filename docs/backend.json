@@ -1,0 +1,171 @@
+{
+  "entities": {
+    "Candidate": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Candidate",
+      "type": "object",
+      "description": "Represents a candidate applying for a job.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the candidate.",
+          "format": "uuid"
+        },
+        "firstName": {
+          "type": "string",
+          "description": "First name of the candidate."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "Last name of the candidate."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the candidate.",
+          "format": "email"
+        },
+        "phone": {
+          "type": "string",
+          "description": "Phone number of the candidate."
+        },
+        "resumeUrl": {
+          "type": "string",
+          "description": "URL to the candidate's resume."
+        }
+      },
+      "required": ["id", "firstName", "lastName", "email"]
+    },
+    "Application": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Application",
+      "type": "object",
+      "description": "Represents a job application submitted by a candidate.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the application.",
+          "format": "uuid"
+        },
+        "candidateId": {
+          "type": "string",
+          "description": "Reference to Candidate. (Relationship: Candidate 1:N Application)"
+        },
+        "jobId": {
+          "type": "string",
+          "description": "Reference to Job. (Relationship: Job 1:N Application)"
+        },
+        "submissionDate": {
+          "type": "string",
+          "description": "Date when the application was submitted.",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "description": "Current status of the application (e.g., 'Applied', 'Interviewing', 'Offered', 'Rejected').",
+          "enum": ["Applied", "Interviewing", "Offered", "Rejected"]
+        },
+        "answers": {
+          "type": "string",
+          "description": "Json string to all the answers of this application."
+        },
+        "jobRole": {
+          "type": "string",
+          "description": "The job role the candidate is applying for."
+        },
+        "candidate": {
+          "type": "object",
+          "description": "Denormalized candidate data for easy access in HR dashboard.",
+          "properties": {
+            "firstName": { "type": "string" },
+            "lastName": { "type": "string" },
+            "email": { "type": "string", "format": "email" }
+          },
+          "required": ["firstName", "lastName", "email"]
+        },
+        "offerLetterUrl": {
+          "type": "string",
+          "description": "URL to the candidate's offer letter PDF."
+        }
+      },
+      "required": [
+        "id",
+        "candidateId",
+        "jobId",
+        "submissionDate",
+        "status",
+        "jobRole"
+      ]
+    },
+    "Job": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Job",
+      "type": "object",
+      "description": "Represents a job posting.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the job posting.",
+          "format": "uuid"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the job."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the job."
+        },
+        "department": {
+          "type": "string",
+          "description": "Name of the department that is related to this job"
+        },
+        "location": {
+          "type": "string",
+          "description": "Location of the job."
+        },
+        "postedDate": {
+          "type": "string",
+          "description": "Date when the job was posted.",
+          "format": "date-time"
+        },
+        "closingDate": {
+          "type": "string",
+          "description": "Date when the job posting closes.",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "title", "description", "location", "postedDate"]
+    }
+  },
+  "auth": {
+    "providers": ["password"]
+  },
+  "firestore": {
+    "collections": {
+      "users": {
+        "path": "/users/{userId}",
+        "schema": { "$ref": "#/entities/Candidate" },
+        "description": "Stores candidate profiles. The userId is the uid from auth."
+      },
+      "jobs": {
+        "path": "/jobs/{jobId}",
+        "schema": { "$ref": "#/entities/Job" },
+        "description": "Stores job postings. Publicly readable, but create/update restricted to HR roles."
+      },
+      "applications": {
+        "path": "/applications/{applicationId}",
+        "schema": { "$ref": "#/entities/Application" },
+        "description": "Stores job applications. Includes denormalized candidate data for improved query performance. HR can view all applications. Candidates can view their own applications."
+      },
+      "roles_hr": {
+        "path": "/roles_hr/{userId}",
+        "schema": {
+          "type": "object",
+          "properties": { "isHR": { "type": "boolean" } },
+          "required": ["isHR"]
+        },
+        "description": "Indicates a user has HR role. Existence of document grants HR permissions."
+      }
+    }
+  }
+}
