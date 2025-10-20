@@ -1,5 +1,7 @@
 # Veridia Hire (Veridia.io)
 
+host link:https://hiring-platform-hazel.vercel.app
+
 A modern, AI-powered hiring platform that streamlines the recruitment process for both candidates and HR teams. Built with Next.js 15, Firebase, and Google Genkit for an intelligent and efficient hiring experience.
 
 ## 🚀 Features
